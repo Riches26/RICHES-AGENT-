@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "agents": {
+      "title": "Agents",
+      "description": "RICHES Multi-Agent System Registry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "description": { "type": "string" },
+        "state": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "category": { "type": "string" },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "systemPrompt": { "type": "string" },
+        "tasksCompleted": { "type": "number" },
+        "lastActive": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "state"]
+    },
+    "tasks": {
+      "title": "Tasks",
+      "description": "OS Tasks and Execution Schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "assignedAgent": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "recurring": { "type": "string" }
+      },
+      "required": ["title", "status"]
+    },
+    "conversations": {
+      "title": "Conversations",
+      "description": "User Interaction Threads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "agentTrace": { "type": "object" },
+        "artifacts": { "type": "array" }
+      }
+    },
+    "approvals": {
+      "title": "Approvals",
+      "description": "Human in the Loop Security Approvals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agentId": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "riskLevel": { "type": "string" },
+        "payload": { "type": "object" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "plugins": {
+      "title": "Plugins",
+      "description": "Dynamic Tool & Service Integrations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "installed": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "icon": { "type": "string" },
+        "version": { "type": "string" },
+        "authType": { "type": "string" },
+        "configured": { "type": "boolean" },
+        "toolsProvided": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "knowledge_docs": {
+      "title": "Knowledge Documents",
+      "description": "RAG Documents and Vector Ingestion Registry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "fileType": { "type": "string" },
+        "size": { "type": "string" },
+        "uploadedAt": { "type": "string" },
+        "chunksCount": { "type": "number" },
+        "status": { "type": "string" }
+      }
+    },
+    "system_events": {
+      "title": "System Events Log",
+      "description": "Event Bus System Telemetry & Observability Log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "source": { "type": "string" },
+        "payload": { "type": "object" },
+        "timestamp": { "type": "string" },
+        "priority": { "type": "string" }
+      }
+    }
+  }
+}

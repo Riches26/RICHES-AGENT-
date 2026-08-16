@@ -1,0 +1,6 @@
+{
+  "name": "RICHES AI Platform",
+  "description": "Multi-agent personal assistant platform featuring an Orchestrator router and specialist sub-agents for Tasks, App Building, Research, Analytics, and Comms.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
