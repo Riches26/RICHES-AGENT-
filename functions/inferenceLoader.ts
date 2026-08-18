@@ -1,10 +1,11 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Simple inference loader that reads a JSON model artifact stored in Firestore under brain_models/<id>
 // and performs forward pass for Dense layers exported by the Python trainer.
 
-if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
+if (!getApps().length) initializeApp();
+const db = getFirestore();
 
 type Layer = { name: string; class_name: string; weights: any[] };
 

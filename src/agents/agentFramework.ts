@@ -31,7 +31,7 @@ export class Agent {
     const toolToCall = this.tools.values().next().value as Tool | undefined;
     if (toolToCall) {
       try {
-        const res = await toolToCall.execute({ prompt, context });
+        const res = await toolToCall.execute({ prompt, ...(context || {}) });
         return { type: 'tool_result', tool: toolToCall.id, result: res };
       } catch (err) {
         return { type: 'error', message: String(err) };

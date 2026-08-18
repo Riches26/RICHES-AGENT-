@@ -12,7 +12,8 @@ import {
   Terminal,
   Layers,
   Sparkles,
-  Zap
+  Zap,
+  Github
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'workspace', label: 'Orchestrator Workspace', icon: MessageSquare, badge: 'Main' },
     { id: 'jarvis', label: 'JARVIS Autonomous OS', icon: Zap, badge: 'Auto' },
+    { id: 'github', label: 'GitHub Code Puller', icon: Github, badge: 'Git' },
     { id: 'google_workspace', label: 'Google Workspace', icon: Sparkles, badge: 'OAuth' },
     { id: 'agents', label: 'Specialist Agents (15)', icon: Users },
     { id: 'planner', label: 'Planner & DAG Graph', icon: GitGraph },

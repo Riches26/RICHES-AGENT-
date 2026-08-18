@@ -66,6 +66,12 @@ export const ResponsivePreview: React.FC<ResponsivePreviewProps> = ({ files }) =
 
   // Generate runnable HTML string with bundled files, Babel, React, and Tailwind CSS + Lucide Icon Shims
   const generateIframeSrcDoc = () => {
+    // Extract any custom CSS stylesheets created in the project (e.g. index.css, style.css, App.css)
+    const customCss = files
+      .filter(f => f.path.endsWith('.css'))
+      .map(f => `/* [${f.path}] */\n${f.content.replace(/@import\s+['"][^'"]+['"];?/g, '')}`)
+      .join('\n\n');
+
     // Combine all component files into a bundled module script
     const componentsCode = files
       .filter(f => f.path.endsWith('.tsx') || f.path.endsWith('.ts') || f.path.endsWith('.jsx') || f.path.endsWith('.js'))
@@ -88,8 +94,13 @@ export const ResponsivePreview: React.FC<ResponsivePreviewProps> = ({ files }) =
       })
       .join('\n\n');
 
-    // Safe script tag escaping
-    const safeCode = componentsCode.replace(/<\/script>/gi, '<\\/script>');
+    // Base64 encode the bundled source code to prevent HTML document or script-tag injection issues
+    let encodedSource = '';
+    try {
+      encodedSource = btoa(unescape(encodeURIComponent(componentsCode)));
+    } catch (e) {
+      encodedSource = '';
+    }
 
     return `
 <!DOCTYPE html>
@@ -98,14 +109,15 @@ export const ResponsivePreview: React.FC<ResponsivePreviewProps> = ({ files }) =
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Tailwind CSS CDN -->
-  <script crossorigin="anonymous" src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            amber: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
+            amber: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+            slate: { 850: '#111827', 950: '#020617' }
           }
         }
       }
@@ -128,21 +140,24 @@ export const ResponsivePreview: React.FC<ResponsivePreviewProps> = ({ files }) =
   </script>
   <style>
     * { box-sizing: border-box; }
-    body { background-color: #020617; color: #f8fafc; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+    body { background-color: #020617; color: #f8fafc; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; min-height: 100vh; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    ${customCss}
   </style>
 </head>
-<body>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen">
   <div id="root"></div>
 
-  <!-- Raw User Source Code (TSX/JSX) -->
-  <script id="user-source" type="text/plain">${safeCode}</script>
+  <!-- Raw User Source Code (TSX/JSX) stored in a secure meta attribute -->
+  <meta id="user-source-b64" data-source="${encodedSource}" />
 
   <script>
     // Expose React and Hooks globally for all dynamic components
+    window.React = React;
+    window.ReactDOM = ReactDOM;
     window.useState = React.useState;
     window.useEffect = React.useEffect;
     window.useRef = React.useRef;
@@ -270,9 +285,20 @@ export const ResponsivePreview: React.FC<ResponsivePreviewProps> = ({ files }) =
 
     function runSandboxApp() {
       try {
-        const sourceElement = document.getElementById('user-source');
-        if (!sourceElement) return;
-        const sourceCode = sourceElement.textContent || '';
+        const metaEl = document.getElementById('user-source-b64');
+        let sourceCode = '';
+        if (metaEl && metaEl.getAttribute('data-source')) {
+          try {
+            sourceCode = decodeURIComponent(escape(atob(metaEl.getAttribute('data-source'))));
+          } catch(e) {
+            sourceCode = '';
+          }
+        }
+        if (!sourceCode) {
+          const fallbackEl = document.getElementById('user-source');
+          sourceCode = fallbackEl ? (fallbackEl.textContent || '') : '';
+        }
+        if (!sourceCode) return;
 
         // Compile TSX/JSX to JS with Babel Standalone in classic React mode (produces React.createElement without import statements)
         const transformed = Babel.transform(sourceCode, {

@@ -38,7 +38,8 @@ import {
   Volume2,
   VolumeX,
   Radio,
-  MicOff
+  MicOff,
+  FolderGit2
 } from 'lucide-react';
 import { ChatMessage, AgentId, AgentInfo, AgentEvent } from '../types';
 import { sendChatMessage, clearChatHistory, fetchSystemEvents, ChatSendOptions } from '../services/api';
@@ -202,6 +203,16 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
 
   // Categorized Prompt Library
   const promptCategories = [
+    {
+      category: 'GitHub & Code Puller',
+      icon: FolderGit2,
+      color: 'text-purple-400',
+      prompts: [
+        { label: 'Pull Connected GitHub Code', prompt: 'Pull codes from my connected github account and analyze repository structure for the Builder Sandbox.' },
+        { label: 'Inspect Repo Branches & Tree', prompt: 'Inspect all branches and file trees across my connected GitHub repositories.' },
+        { label: 'Vector Index Repo to Memory', prompt: 'Pull source files from my connected GitHub repository and index them into pgvector RAG memory.' }
+      ]
+    },
     {
       category: 'Software & Code',
       icon: Code,
@@ -555,7 +566,7 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
           temperature: sendOptions?.temperatureOverride ?? 0.7
         },
         suggestedParams: {
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.1-flash-lite',
           temperature: 0.2,
           maxTokens: 4096,
           reasoningStrategy: 'Deterministic Low-Temperature Direct Router'

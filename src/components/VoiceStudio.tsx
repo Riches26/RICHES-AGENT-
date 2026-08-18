@@ -30,12 +30,15 @@ import {
   Trash2,
   Download,
   Info,
-  RadioTower
+  RadioTower,
+  UserCheck,
+  Lock
 } from 'lucide-react';
 import { 
   sendVoiceConversationalTurn, 
   getVoiceWakeAck, 
   synthesizeGeminiVoice,
+  fetchOwnerVoiceProfile,
   VoiceConversationalTurnResult 
 } from '../services/api';
 import { 
@@ -45,11 +48,18 @@ import {
   speakWithBrowserTts, 
   stopAllAudioPlayback,
   createMicrophoneAnalyser,
+  getBestMasculineVoice,
   MicStreamHandle,
   WakeSensitivity,
   VoiceEngineMode,
   GeminiVoiceName
 } from '../services/voiceEngine';
+import {
+  OwnerVoiceProfile,
+  loadOwnerVoiceProfileFromStorage,
+  saveOwnerVoiceProfileToStorage
+} from '../services/voiceprintEngine';
+import { VoiceprintManager } from './VoiceprintManager';
 import { AudioVisualizer3D } from './AudioVisualizer3D';
 
 interface VoiceStudioProps {
@@ -77,7 +87,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
   // Voice Studio Operational Mode
   const [operationMode, setOperationMode] = useState<'conversational' | 'wake_word_only' | 'push_to_talk'>('conversational');
   const [voiceEngineMode, setVoiceEngineMode] = useState<VoiceEngineMode>('gemini_neural');
-  const [geminiVoice, setGeminiVoice] = useState<GeminiVoiceName>('Kore');
+  const [geminiVoice, setGeminiVoice] = useState<GeminiVoiceName>('Charon'); // Default to deep resonant masculine voice
   const [wakeSensitivity, setWakeSensitivity] = useState<WakeSensitivity>('high');
   const [enableSoundEffects, setEnableSoundEffects] = useState<boolean>(true);
   const [sttLanguage, setSttLanguage] = useState<string>('en-US');
@@ -113,16 +123,27 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
   const micStreamHandleRef = useRef<MicStreamHandle | null>(null);
   const meterIntervalRef = useRef<number | null>(null);
 
-  // Browser TTS voices
+  // Browser TTS voices (Tuned to deep masculine tone by default)
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedBrowserVoiceURI, setSelectedBrowserVoiceURI] = useState<string>('');
-  const [ttsRate, setTtsRate] = useState<number>(1.05);
-  const [ttsPitch, setTtsPitch] = useState<number>(1.0);
+  const [ttsRate, setTtsRate] = useState<number>(0.98); // Natural conversational cadence
+  const [ttsPitch, setTtsPitch] = useState<number>(0.88); // Deep masculine resonance
   const [ttsVolume, setTtsVolume] = useState<number>(1.0);
   const [personality, setPersonality] = useState<'executive' | 'conversational' | 'concise' | 'engineer'>('conversational');
 
   // Active View Tab
-  const [activeTab, setActiveTab] = useState<'conversation' | 'calibration' | 'gemini_voices'>('conversation');
+  const [activeTab, setActiveTab] = useState<'conversation' | 'calibration' | 'gemini_voices' | 'voiceprint'>('conversation');
+  const [ownerVoiceProfile, setOwnerVoiceProfile] = useState<OwnerVoiceProfile | null>(() => loadOwnerVoiceProfileFromStorage());
+
+  // Sync profile from backend on mount
+  useEffect(() => {
+    fetchOwnerVoiceProfile().then((prof) => {
+      if (prof && prof.samples && prof.samples.length > 0) {
+        setOwnerVoiceProfile(prof);
+        saveOwnerVoiceProfileToStorage(prof);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Internal References to prevent stale event closures
   const recognitionRef = useRef<any>(null);
@@ -155,7 +176,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
   useEffect(() => { selectedBrowserVoiceURIRef.current = selectedBrowserVoiceURI; }, [selectedBrowserVoiceURI]);
   useEffect(() => { dialogueHistoryRef.current = dialogueHistory; }, [dialogueHistory]);
 
-  // Load Browser TTS Voices
+  // Load Browser TTS Voices (Prioritize Deep Masculine / British / Natural Male Accents)
   useEffect(() => {
     const loadVoices = () => {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -163,7 +184,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
         if (voices.length > 0) {
           setBrowserVoices(voices);
           if (!selectedBrowserVoiceURI) {
-            const best = voices.find(v => (v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel')))) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+            const best = getBestMasculineVoice(voices);
             if (best) setSelectedBrowserVoiceURI(best.voiceURI);
           }
         }
@@ -612,7 +633,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
                 </span>
               ) : isMicActive ? (
                 <span className="text-amber-300/90 flex items-center gap-1">
-                  <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> Wake Word Active ("Hey Riches" / "Riches")
+                  <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> Wake Word Active ("Hey Riches wake up" / "Hey Riches")
                 </span>
               ) : (
                 <span className="text-slate-400">Microphone Inactive · Tap Start Voice Engine</span>
@@ -808,10 +829,10 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
         <div className="lg:col-span-5 flex flex-col gap-4">
           
           {/* Navigation Tabs */}
-          <div className="flex p-1 bg-[#0c121e] border border-slate-800 rounded-xl">
+          <div className="flex p-1 bg-[#0c121e] border border-slate-800 rounded-xl overflow-x-auto">
             <button
               onClick={() => setActiveTab('conversation')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'conversation'
                   ? 'bg-slate-800 text-white shadow-sm font-semibold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -821,8 +842,19 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
               Dialogue ({dialogueHistory.length})
             </button>
             <button
+              onClick={() => setActiveTab('voiceprint')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'voiceprint'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              Voiceprint ID {ownerVoiceProfile?.samples?.length ? `(${ownerVoiceProfile.samples.length})` : ''}
+            </button>
+            <button
               onClick={() => setActiveTab('gemini_voices')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'gemini_voices'
                   ? 'bg-slate-800 text-white shadow-sm font-semibold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -833,7 +865,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('calibration')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'calibration'
                   ? 'bg-slate-800 text-white shadow-sm font-semibold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -965,10 +997,10 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-300">Prebuilt Gemini Neural Voices:</label>
                 {[
-                  { name: 'Kore', gender: 'Female', desc: 'Warm, articulate, balanced executive voice (Recommended)', tone: 'Clear & Natural' },
+                  { name: 'Charon', gender: 'Male', desc: 'Deep, resonant, calm authoritative executive voice (Default)', tone: 'Deep & Authoritative', recommended: true },
+                  { name: 'Fenrir', gender: 'Male', desc: 'Dynamic, focused, sharp engineering masculine voice', tone: 'Focused & Direct' },
                   { name: 'Puck', gender: 'Male', desc: 'Energetic, friendly, conversational and lively tone', tone: 'Upbeat & Crisp' },
-                  { name: 'Charon', gender: 'Male', desc: 'Deep, resonant, calm authoritative executive voice', tone: 'Deep & Authoritative' },
-                  { name: 'Fenrir', gender: 'Male', desc: 'Dynamic, focused, sharp engineering voice', tone: 'Focused & Direct' },
+                  { name: 'Kore', gender: 'Female', desc: 'Warm, articulate, balanced voice', tone: 'Clear & Natural' },
                   { name: 'Zephyr', gender: 'Female', desc: 'Calm, soothing studio sound with crystal clarity', tone: 'Gentle & Clear' }
                 ].map((v) => (
                   <div
@@ -986,6 +1018,11 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
                           {v.gender}
                         </span>
                         <span className="text-[10px] text-amber-400/80 font-mono">({v.tone})</span>
+                        {v.recommended && (
+                          <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30">
+                            Selected Default
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate-400">{v.desc}</p>
                     </div>
@@ -1060,18 +1097,18 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
                 </div>
                 <p className="text-[11px] text-slate-400">
                   {wakeSensitivity === 'high'
-                    ? 'High: Triggers on fuzzy phonetic matches (Hey Riches, Richrs, Richers, Richard).'
+                    ? 'High: Triggers on fuzzy phonetic matches (Hey Riches wake up, Riches wake up, Richrs, Richard).'
                     : wakeSensitivity === 'medium'
-                    ? 'Medium: Standard balanced trigger for "Hey Riches" and "Riches".'
+                    ? 'Medium: Standard balanced trigger for "Hey Riches wake up", "Hey Riches", and "Wake up Riches".'
                     : 'Low: Strict exact token match only.'}
                 </p>
               </div>
 
               {/* Supported Wake Words Glossary */}
               <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
-                <span className="font-semibold text-slate-300 block mb-1">Recognized Wake Patterns:</span>
+                <span className="font-semibold text-slate-300 block mb-1">Recognized Wake Patterns (Siri & Google Style):</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {['Hey Riches', 'Riches', 'Hey Richrs', 'Richrs', 'Hey Richard', 'Hey Reach Us', 'Hey Jarvis'].map((phrase) => (
+                  {['Hey Riches wake up', 'Riches wake up', 'Wake up Riches', 'Hey Riches', 'Ok Riches', 'Riches', 'Hey Richrs wake up', 'Hey Richard', 'Hey Reach Us'].map((phrase) => (
                     <span key={phrase} className="px-2 py-0.5 bg-slate-800 rounded font-mono text-[10px] text-amber-300/90 border border-slate-700">
                       ✓ {phrase}
                     </span>
@@ -1153,6 +1190,16 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: Voiceprint Biometrics & Owner Voice Match */}
+          {activeTab === 'voiceprint' && (
+            <div className="flex-1">
+              <VoiceprintManager
+                ownerProfile={ownerVoiceProfile}
+                onProfileUpdated={(updated) => setOwnerVoiceProfile(updated)}
+              />
             </div>
           )}
 

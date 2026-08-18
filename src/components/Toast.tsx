@@ -18,6 +18,21 @@ export interface ToastItem extends ToastEventPayload {
   createdAt: number;
 }
 
+export function showToast(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', title?: string) {
+  const defaultTitles = {
+    info: 'System Notice',
+    success: 'Task Completed',
+    warning: 'Caution',
+    error: 'Execution Error'
+  };
+  eventBus.emit('toast:show', {
+    title: title || defaultTitles[type] || 'Notice',
+    message,
+    type,
+    duration: type === 'error' ? 8000 : 4500
+  });
+}
+
 export const ToastContainer: React.FC = () => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 

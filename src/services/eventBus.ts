@@ -151,7 +151,7 @@ class EventBus {
 
     // Compute alternative resilient parameters
     const defaultSuggested = {
-      model: 'gemini-2.5-pro',
+      model: 'gemini-3.1-pro-preview',
       temperature: 0.2, // Lower temperature for high determinism
       maxTokens: 4096,
       timeoutMs: 30000,

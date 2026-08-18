@@ -53,13 +53,13 @@ export const AiBuilderAssistant: React.FC<AiBuilderAssistantProps> = ({
 
       const data = await res.json();
 
-      if (data.success && data.updatedFiles) {
+      if (data.success && data.updatedFiles && data.updatedFiles.length > 0) {
         onApplyAiGeneratedFiles(data.updatedFiles);
         setChatMessages(prev => [
           ...prev,
           {
             role: 'assistant',
-            text: data.summary || `Updated ${data.updatedFiles.length} project files based on your request!`,
+            text: data.summary || `Updated and saved ${data.updatedFiles.length} project files to Firestore!`,
             timestamp: new Date().toLocaleTimeString()
           }
         ]);
@@ -67,11 +67,12 @@ export const AiBuilderAssistant: React.FC<AiBuilderAssistantProps> = ({
         throw new Error(data.error || 'Failed to update project files');
       }
     } catch (err: any) {
+      console.error('AI Builder Chat Error:', err);
       setChatMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          text: `⚡ Simulated update: Modified App.tsx and components based on "${userText}". All files recompiled cleanly.`,
+          text: `⚠️ Generation notice: ${err?.message || 'Error occurred during generation'}. Please verify project files or retry.`,
           timestamp: new Date().toLocaleTimeString()
         }
       ]);

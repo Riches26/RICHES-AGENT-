@@ -13,6 +13,7 @@ import { SecurityApprovals } from './components/SecurityApprovals';
 import { GoogleWorkspaceHub } from './components/GoogleWorkspaceHub';
 import { JarvisAutonomousEngine } from './components/JarvisAutonomousEngine';
 import { GlobalVoiceAssistantHUD } from './components/GlobalVoiceAssistantHUD';
+import { GitHubHub } from './components/GitHubHub';
 import { ToastContainer } from './components/Toast';
 
 import { AgentInfo, ChatMessage, PendingApproval, PluginItem } from './types';
@@ -156,6 +157,13 @@ I am **RICHES**, a production-grade, event-driven multi-agent platform powered b
 
           {activeView === 'jarvis' && (
             <JarvisAutonomousEngine />
+          )}
+
+          {activeView === 'github' && (
+            <GitHubHub 
+              onNavigateToBuilder={handleOpenSandboxCode}
+              onNavigateToView={handleNavigate}
+            />
           )}
 
           {activeView === 'google_workspace' && (

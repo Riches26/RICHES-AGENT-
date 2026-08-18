@@ -28,7 +28,8 @@ import {
   Search,
   Command,
   FileCode,
-  ListTodo
+  ListTodo,
+  Github
 } from 'lucide-react';
 import { AgentInfo, TaskItem, RecentFile } from '../types';
 import { GlobalSearchModal } from './GlobalSearchModal';
@@ -126,6 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
     {
       group: 'Autonomous Development',
       items: [
+        { id: 'github', label: 'GitHub Code Puller', icon: Github, badge: 'Git', desc: 'Pull connected repositories & source code' },
         { id: 'agents', label: 'Specialist Agents (15)', icon: Users, desc: '15 specialist agents on event bus' },
         { id: 'planner', label: 'Planner & DAG Graph', icon: GitGraph, desc: 'Dynamic task decomposition graph' },
         { id: 'builder', label: 'Builder Sandbox', icon: Code, badge: 'Live', desc: 'Autonomous full-stack app generation' }
@@ -278,8 +280,8 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/10 animate-pulse'
                 : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-850'
             }`}
-            title="Voice Wake Word Detection: say 'Riches'"
-            aria-label="Wake Word toggle"
+            title="Voice Wake Word: say 'Hey Riches wake up' or 'Hey Riches'"
+            aria-label="Wake Word detection toggle"
           >
             {isListeningWakeWord ? (
               <Radio className="w-3.5 h-3.5 text-amber-400 animate-spin" />

@@ -38,8 +38,8 @@ export const JarvisVoiceDeck: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [voiceVolume, setVoiceVolume] = useState(1.0);
-  const [speechPitch, setSpeechPitch] = useState(1.0);
-  const [speechRate, setSpeechRate] = useState(1.05);
+  const [speechPitch, setSpeechPitch] = useState(0.88); // Deep masculine resonance
+  const [speechRate, setSpeechRate] = useState(0.98); // Natural cadence
 
   const [dialogueHistory, setDialogueHistory] = useState<VoiceDialogue[]>([
     {

@@ -219,7 +219,7 @@ export const ClusterTelemetry = ({ data }) => {
 
     try {
       // Real API execution through supervisor chat API
-      const result = await sendChatMessage(userText, 'gemini-2.5-flash');
+      const result = await sendChatMessage(userText, 'orchestrator', false, undefined, { modelOverride: 'gemini-3.7-flash' });
       const targetAgent = result.agentTrace?.targetAgents?.[0] || 'orchestrator';
       const modelUsed = result.agentTrace?.modelUsed || 'Gemini 2.5 Flash';
       const replyMsg: Message = {

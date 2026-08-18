@@ -109,6 +109,22 @@
         "timestamp": { "type": "string" },
         "priority": { "type": "string" }
       }
+    },
+    "builder_projects": {
+      "title": "Builder Projects",
+      "description": "Stored user-generated multi-file codebases and projects in the Builder Sandbox",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "prompt": { "type": "string" },
+        "category": { "type": "string" },
+        "files": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "files"]
     }
   }
 }

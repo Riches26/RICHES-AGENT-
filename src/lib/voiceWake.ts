@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
+import { speakWithBrowserTts } from '../services/voiceEngine';
 
 // Enhanced Riches Voice: Wake-word, UI controls, optional on-device hotword integration placeholder,
 // visual transcript, retry/backoff, language & sensitivity controls, mute toggle.
 
-const DEFAULT_WAKE_WORD_REGEX = /\b(hey\s+riches|riches)\b/i;
+const DEFAULT_WAKE_WORD_REGEX = /\b(hey\s+riches\s+wake\s+up|riches\s+wake\s+up|wake\s+up\s+riches|hey\s+riches|ok\s+riches|riches|wake\s+up)\b/i;
 let WAKE_WORD_REGEX = DEFAULT_WAKE_WORD_REGEX;
 let COMMAND_CAPTURE_MS = 5500; // capture window after wake (adjustable by sensitivity)
 
@@ -12,17 +13,11 @@ function log(...args: any[]) {
 }
 
 function speak(text: string, lang = 'en-US', muted = false) {
-  try {
-    if (muted) return;
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang;
-    utter.rate = 1.0;
-    window.speechSynthesis.speak(utter);
-  } catch (e) {
-    console.warn('TTS error', e);
-  }
+  if (muted) return;
+  speakWithBrowserTts(text, {
+    pitch: 0.88,
+    rate: 0.98
+  });
 }
 
 function safeJson(v: any) {

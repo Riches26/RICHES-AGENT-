@@ -20,11 +20,12 @@ export interface WakeDetectionResult {
 
 export function getVoiceWakeAck(): string {
   const acks = [
-    "I'm listening.",
-    "Yes, standing by.",
-    "Online. What would you like me to do?",
-    "I'm here. Go ahead.",
-    "Listening now."
+    "I'm awake and listening. How can I help you?",
+    "Yes, I'm awake. Go ahead.",
+    "I'm here and listening. What would you like me to do?",
+    "Online and standing by. What's on your mind?",
+    "I'm awake. How can I assist you today?",
+    "Ready. Go ahead."
   ];
   return acks[Math.floor(Math.random() * acks.length)];
 }
@@ -45,11 +46,25 @@ const WAKE_PATTERNS_BASE = [
   'jarvis'
 ];
 
-const WAKE_PREFIXES = ['hey', 'hi', 'ok', 'okay', 'yo', 'hello', 'a', 'the'];
+const WAKE_PREFIXES = ['hey', 'hi', 'ok', 'okay', 'yo', 'hello', 'a', 'the', 'dear'];
+
+const WAKE_VERBS = [
+  'wake\\s+up',
+  'wake',
+  'please\\s+wake\\s+up',
+  'wake\\s+up\\s+please',
+  'are\\s+you\\s+awake',
+  'are\\s+you\\s+there',
+  'are\\s+you\\s+listening',
+  'stand\\s+by',
+  'listen\\s+up',
+  'listen'
+];
 
 /**
  * Fuzzy phonetic wake-word parser.
- * Handles "Hey Riches", "Riches", "Hey Richrs", "Richrs", "Hey Richard", etc.
+ * Handles "Hey Riches wake up", "Riches wake up", "Wake up Riches", "Hey Riches", "Ok Riches", etc.
+ * Operates with the same high responsiveness as Hey Siri and Hey Google.
  */
 export function analyzeWakeWord(
   transcript: string,
@@ -60,80 +75,148 @@ export function analyzeWakeWord(
   }
 
   const clean = transcript.toLowerCase().trim();
+  if (!clean) {
+    return { triggered: false, matchedPhrase: '', command: '', isSummonOnly: false, confidence: 0 };
+  }
 
-  // 1. High-fidelity Regex Matching
-  // Matches "Hey Riches", "Riches", "Hey Richrs", "Ok Riches", "Hi Riches", etc.
-  const regexPattern = new RegExp(
-    `^(?:(${WAKE_PREFIXES.join('|')})\\s+)?(${WAKE_PATTERNS_BASE.join('|')})([\\s,!?.\\-_].*|$)`,
+  // 1. Pattern A: "[Prefix] [Riches] [Wake Up / Verb] [Remainder...]"
+  // Examples: "Hey Riches wake up", "Hey Riches wake up and show tasks", "Riches wake up", "Hey Riches"
+  const patternA = new RegExp(
+    `^(?:(${WAKE_PREFIXES.join('|')})\\s+)?(${WAKE_PATTERNS_BASE.join('|')})(?:\\s+(${WAKE_VERBS.join('|')}))?([\\s,!?.\\-_].*|$)`,
     'i'
   );
+  const matchA = clean.match(patternA);
 
-  const match = clean.match(regexPattern);
+  if (matchA) {
+    const prefix = matchA[1] || '';
+    const core = matchA[2] || '';
+    const verb = matchA[3] || '';
+    const rawRemainder = matchA[4] || '';
 
-  if (match) {
-    const prefix = match[1] || '';
-    const core = match[2] || '';
-    const remainder = (match[3] || '').replace(/^[,\s.!?\-_]+/, '').trim();
-    const matchedPhrase = prefix ? `${prefix} ${core}` : core;
+    const matchedParts = [prefix, core, verb].filter(Boolean);
+    const matchedPhrase = matchedParts.join(' ');
+
+    const cleanedCommand = cleanSpokenCommand(rawRemainder);
+    const isSummonOnly = isSummonOnlyPhrase(cleanedCommand);
 
     return {
       triggered: true,
       matchedPhrase,
-      command: remainder,
-      isSummonOnly: remainder.length === 0,
+      command: isSummonOnly ? '' : cleanedCommand,
+      isSummonOnly,
       confidence: 0.98
     };
   }
 
-  // 2. Mid-sentence wake word detection (e.g. "...so hey riches open tasks")
+  // 2. Pattern B: "[Wake Up / Verb] [Prefix] [Riches] [Remainder...]"
+  // Examples: "Wake up Riches", "Wake up hey Riches", "Wake up Riches and open builder"
+  const patternB = new RegExp(
+    `^(?:(${WAKE_VERBS.join('|')})\\s+)(?:(${WAKE_PREFIXES.join('|')})\\s+)?(${WAKE_PATTERNS_BASE.join('|')})([\\s,!?.\\-_].*|$)`,
+    'i'
+  );
+  const matchB = clean.match(patternB);
+
+  if (matchB) {
+    const verb = matchB[1] || '';
+    const prefix = matchB[2] || '';
+    const core = matchB[3] || '';
+    const rawRemainder = matchB[4] || '';
+
+    const matchedParts = [verb, prefix, core].filter(Boolean);
+    const matchedPhrase = matchedParts.join(' ');
+
+    const cleanedCommand = cleanSpokenCommand(rawRemainder);
+    const isSummonOnly = isSummonOnlyPhrase(cleanedCommand);
+
+    return {
+      triggered: true,
+      matchedPhrase,
+      command: isSummonOnly ? '' : cleanedCommand,
+      isSummonOnly,
+      confidence: 0.96
+    };
+  }
+
+  // 3. Pattern C: Pure Wake Up Summon ("wake up", "wake up please", "are you awake")
+  const patternC = new RegExp(`^(?:${WAKE_VERBS.join('|')})$`, 'i');
+  if (patternC.test(clean)) {
+    return {
+      triggered: true,
+      matchedPhrase: clean,
+      command: '',
+      isSummonOnly: true,
+      confidence: 0.92
+    };
+  }
+
+  // 4. Mid-sentence wake phrase (e.g. "...so hey riches wake up show my tasks")
   const midRegex = new RegExp(
-    `(?:\\b(?:${WAKE_PREFIXES.join('|')})\\s+)?\\b(?:${WAKE_PATTERNS_BASE.join('|')})\\b([\\s,!?.\\-_].*|$)`,
+    `(?:\\b(?:${WAKE_PREFIXES.join('|')})\\s+)?\\b(?:${WAKE_PATTERNS_BASE.join('|')})\\b(?:\\s+(?:${WAKE_VERBS.join('|')}))?([\\s,!?.\\-_].*|$)`,
     'i'
   );
   const midMatch = clean.match(midRegex);
 
   if (midMatch) {
     const rawMatchText = midMatch[0];
-    const remainder = (midMatch[1] || '').replace(/^[,\s.!?\-_]+/, '').trim();
+    const rawRemainder = midMatch[1] || '';
+
+    const cleanedCommand = cleanSpokenCommand(rawRemainder);
+    const isSummonOnly = isSummonOnlyPhrase(cleanedCommand);
 
     return {
       triggered: true,
       matchedPhrase: rawMatchText.trim(),
-      command: remainder,
-      isSummonOnly: remainder.length === 0,
+      command: isSummonOnly ? '' : cleanedCommand,
+      isSummonOnly,
       confidence: 0.90
     };
   }
 
-  // 3. High-sensitivity fuzzy matching (levenshtein on leading tokens)
+  // 5. High-sensitivity fuzzy matching (levenshtein on leading tokens)
   if (sensitivity === 'high') {
     const words = clean.split(/\s+/);
     if (words.length > 0) {
       const firstWord = words[0].replace(/[^a-z]/g, '');
       const secondWord = words.length > 1 ? words[1].replace(/[^a-z]/g, '') : '';
+      const thirdWord = words.length > 2 ? words[2].replace(/[^a-z]/g, '') : '';
 
-      // Check if second word is wake word when first is prefix
+      // Check if second word is wake word when first is prefix (e.g. "hey richrs wake up")
       if (WAKE_PREFIXES.includes(firstWord) && secondWord) {
         if (isFuzzyMatch(secondWord, 'riches') || isFuzzyMatch(secondWord, 'richrs')) {
-          const remainder = words.slice(2).join(' ');
+          let remainderWords = words.slice(2);
+          // Check if third word is "wake up"
+          if (thirdWord === 'wake' || thirdWord === 'wakeup') {
+            remainderWords = words.slice(3);
+          }
+          const rawRemainder = remainderWords.join(' ');
+          const cleanedCommand = cleanSpokenCommand(rawRemainder);
+          const isSummonOnly = isSummonOnlyPhrase(cleanedCommand);
+
           return {
             triggered: true,
-            matchedPhrase: `${firstWord} ${secondWord}`,
-            command: remainder,
-            isSummonOnly: remainder.length === 0,
-            confidence: 0.82
+            matchedPhrase: `${firstWord} ${secondWord}${thirdWord ? ` ${thirdWord}` : ''}`,
+            command: isSummonOnly ? '' : cleanedCommand,
+            isSummonOnly,
+            confidence: 0.85
           };
         }
       }
 
-      // Check if first word directly matches
+      // Check if first word directly matches (e.g. "richrs wake up")
       if (isFuzzyMatch(firstWord, 'riches') || isFuzzyMatch(firstWord, 'richrs')) {
-        const remainder = words.slice(1).join(' ');
+        let remainderWords = words.slice(1);
+        if (secondWord === 'wake' || secondWord === 'wakeup') {
+          remainderWords = words.slice(2);
+        }
+        const rawRemainder = remainderWords.join(' ');
+        const cleanedCommand = cleanSpokenCommand(rawRemainder);
+        const isSummonOnly = isSummonOnlyPhrase(cleanedCommand);
+
         return {
           triggered: true,
-          matchedPhrase: firstWord,
-          command: remainder,
-          isSummonOnly: remainder.length === 0,
+          matchedPhrase: `${firstWord}${secondWord ? ` ${secondWord}` : ''}`,
+          command: isSummonOnly ? '' : cleanedCommand,
+          isSummonOnly,
           confidence: 0.85
         };
       }
@@ -141,6 +224,38 @@ export function analyzeWakeWord(
   }
 
   return { triggered: false, matchedPhrase: '', command: '', isSummonOnly: false, confidence: 0 };
+}
+
+function cleanSpokenCommand(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/^[,\s.!?\-_]+/, '')
+    .replace(/^(?:and\s+|wake\s+up\s+(?:and\s+)?|please\s+(?:wake\s+up\s+)?|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|would\s+you\s+(?:please\s+)?|to\s+|just\s+)+/i, '')
+    .replace(/[,\s.!?\-_]+$/, '')
+    .trim();
+}
+
+function isSummonOnlyPhrase(command: string): boolean {
+  if (!command || command.length === 0) return true;
+  const summonFillers = [
+    'wake up',
+    'wake',
+    'please wake up',
+    'wake up please',
+    'are you there',
+    'are you awake',
+    'are you listening',
+    'can you hear me',
+    'hello',
+    'good morning',
+    'good afternoon',
+    'good evening',
+    'hey',
+    'hi',
+    'please',
+    'thanks'
+  ];
+  return summonFillers.includes(command.toLowerCase().trim());
 }
 
 function isFuzzyMatch(word: string, target: string): boolean {
@@ -339,10 +454,97 @@ export function stopAllAudioPlayback(): void {
 }
 
 // ----------------------------------------------------
-// 4. Browser SpeechSynthesis Refined Player
+// 4. Browser SpeechSynthesis Refined Player (Sentence Chunked & Deep Masculine Accented Voice Priority)
 // ----------------------------------------------------
 
 let ttsKeepAliveTimer: any = null;
+let currentUtteranceQueue: SpeechSynthesisUtterance[] = [];
+let isQueuePlaying = false;
+
+// Heuristic to discover the best deep masculine English voices across platforms
+export function getBestMasculineVoice(voices: SpeechSynthesisVoice[], preferredVoiceName?: string): SpeechSynthesisVoice | undefined {
+  if (!voices || voices.length === 0) return undefined;
+
+  if (preferredVoiceName) {
+    const matched = voices.find(v => v.name.toLowerCase().includes(preferredVoiceName.toLowerCase()) || v.voiceURI.toLowerCase() === preferredVoiceName.toLowerCase());
+    if (matched) return matched;
+  }
+
+  // Priority search for distinguished deep male accents:
+  // 1. UK English Deep / British Male (Daniel, George, Arthur, Oliver, Ryan, Malcolm, Brian)
+  // 2. US English Deep Male (Google US English Male, Guy, David, Alex, Tom, Aaron, Fred)
+  // 3. AU / Scottish / Irish / South African accents (Russell, Oliver, James)
+  const maleKeywords = [
+    'daniel', 'george', 'guy', 'david', 'alex', 'arthur', 'oliver', 'ryan',
+    'brian', 'tom', 'aaron', 'russell', 'james', 'richard', 'charles', 'male', 'deep', 'natural (male)'
+  ];
+
+  // Try British/Scottish/Irish deep male voice first for refined accented persona
+  const britishMale = voices.find(v => {
+    const name = v.name.toLowerCase();
+    const lang = (v.lang || '').toLowerCase();
+    return (lang.includes('en-gb') || lang.includes('en_gb') || lang.includes('en-sc') || lang.includes('en-ie')) &&
+      maleKeywords.some(k => name.includes(k));
+  });
+  if (britishMale) return britishMale;
+
+  // General English masculine voice matching keywords
+  const englishMale = voices.find(v => {
+    const name = v.name.toLowerCase();
+    const lang = (v.lang || '').toLowerCase();
+    return lang.startsWith('en') && maleKeywords.some(k => name.includes(k));
+  });
+  if (englishMale) return englishMale;
+
+  // UK English natural voice
+  const ukEnglish = voices.find(v => {
+    const lang = (v.lang || '').toLowerCase();
+    return lang.includes('en-gb') || lang.includes('en_gb') || lang.includes('en-au');
+  });
+  if (ukEnglish) return ukEnglish;
+
+  // Any English voice
+  return voices.find(v => (v.lang || '').toLowerCase().startsWith('en')) || voices[0];
+}
+
+// Splits continuous text into natural conversational spoken phrases to prevent SpeechSynthesis timeouts
+function splitIntoConversationalChunks(text: string): string[] {
+  // Clean markdown, symbols, code markers
+  const clean = text
+    .replace(/[*#`_~[\]()]/g, '')
+    .replace(/https?:\/\/\S+/g, 'link')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!clean) return [];
+
+  // Split by sentence boundaries (. ! ?) or major commas/semicolons if sentence is long
+  const sentences = clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+  const chunks: string[] = [];
+
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if (trimmed.length > 140) {
+      // Split long sentence at comma/semicolon for natural human breathing pauses
+      const subParts = trimmed.split(/([,;:]\s+)/);
+      let buffer = '';
+      for (const part of subParts) {
+        if ((buffer + part).length < 120) {
+          buffer += part;
+        } else {
+          if (buffer.trim()) chunks.push(buffer.trim());
+          buffer = part;
+        }
+      }
+      if (buffer.trim()) chunks.push(buffer.trim());
+    } else {
+      chunks.push(trimmed);
+    }
+  }
+
+  return chunks.filter(c => c.length > 0);
+}
 
 export function speakWithBrowserTts(
   text: string,
@@ -376,81 +578,91 @@ export function speakWithBrowserTts(
     }
   } catch (_) {}
 
-  const cleanText = text
-    .replace(/[*#`_~[\]()]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!cleanText) {
+  const chunks = splitIntoConversationalChunks(text);
+  if (chunks.length === 0) {
     if (options.onEnd) options.onEnd();
     return;
   }
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-
-  utterance.volume = options.volume ?? 1.0;
-  utterance.pitch = options.pitch ?? 1.0;
-  utterance.rate = options.rate ?? 1.05;
-
   const voices = window.speechSynthesis.getVoices() || [];
-  if (voices.length > 0) {
-    let chosenVoice: SpeechSynthesisVoice | undefined;
+  const chosenVoice = getBestMasculineVoice(voices, options.preferredVoiceName);
 
-    if (options.preferredVoiceName) {
-      chosenVoice = voices.find(v => v.name.toLowerCase().includes(options.preferredVoiceName!.toLowerCase()));
-    }
+  // Deep masculine acoustic settings: pitch = 0.88 - 0.92, rate = 0.98 - 1.02
+  const pitch = options.pitch !== undefined ? options.pitch : 0.88;
+  const rate = options.rate !== undefined ? options.rate : 0.98;
+  const volume = options.volume !== undefined ? options.volume : 1.0;
 
-    if (!chosenVoice) {
-      // Find top natural/high quality English voice
-      chosenVoice = voices.find(
-        v =>
-          (v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel') || v.name.includes('Alex') || v.name.includes('Karen'))) ||
-          v.lang.startsWith('en')
-      ) || voices[0];
-    }
-
+  const utterances = chunks.map(chunk => {
+    const u = new SpeechSynthesisUtterance(chunk);
+    u.volume = volume;
+    u.pitch = pitch;
+    u.rate = rate;
     if (chosenVoice) {
-      utterance.voice = chosenVoice;
+      u.voice = chosenVoice;
     }
-  }
+    return u;
+  });
+
+  currentUtteranceQueue = utterances;
+  isQueuePlaying = true;
 
   const cleanup = () => {
     if (ttsKeepAliveTimer) {
       clearInterval(ttsKeepAliveTimer);
       ttsKeepAliveTimer = null;
     }
+    currentUtteranceQueue = [];
+    isQueuePlaying = false;
   };
 
-  utterance.onend = () => {
-    cleanup();
-    if (options.onEnd) options.onEnd();
-  };
-
-  utterance.onerror = (e) => {
-    cleanup();
-    console.warn('[VoiceEngine] Browser TTS error:', e);
-    if (options.onError) options.onError(e);
-  };
-
-  // Chrome garbage collection workaround: keep synthesis engine alive
+  // Robust keep-alive loop to prevent Chrome and Safari SpeechSynthesis engine cutoff after 10-15s
   ttsKeepAliveTimer = setInterval(() => {
     if (!window.speechSynthesis.speaking) {
-      cleanup();
+      if (!isQueuePlaying) cleanup();
     } else {
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }
-  }, 5000);
+  }, 4000);
 
-  try {
-    window.speechSynthesis.speak(utterance);
-    // Explicitly resume to avoid Chrome audio policy freeze
-    window.speechSynthesis.resume();
-  } catch (err) {
-    console.warn('[VoiceEngine] Synthesis speak call exception:', err);
-    cleanup();
-    if (options.onError) options.onError(err);
-  }
+  let currentIndex = 0;
+
+  const playNextChunk = () => {
+    if (!isQueuePlaying || currentIndex >= currentUtteranceQueue.length) {
+      cleanup();
+      if (options.onEnd) options.onEnd();
+      return;
+    }
+
+    const currentUtterance = currentUtteranceQueue[currentIndex];
+
+    currentUtterance.onend = () => {
+      currentIndex++;
+      playNextChunk();
+    };
+
+    currentUtterance.onerror = (e) => {
+      console.warn('[VoiceEngine] TTS chunk error:', e);
+      currentIndex++;
+      if (currentIndex < currentUtteranceQueue.length) {
+        playNextChunk();
+      } else {
+        cleanup();
+        if (options.onError) options.onError(e);
+      }
+    };
+
+    try {
+      window.speechSynthesis.speak(currentUtterance);
+      window.speechSynthesis.resume();
+    } catch (err) {
+      console.warn('[VoiceEngine] Utterance speak exception:', err);
+      cleanup();
+      if (options.onError) options.onError(err);
+    }
+  };
+
+  playNextChunk();
 }
 
 // ----------------------------------------------------
